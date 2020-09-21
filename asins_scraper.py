@@ -25,7 +25,12 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 
 
 def get_page_soup(client, url, parsed_checked_asin):
-    product_page = client.get(url)
+    try:
+        product_page = client.get(url)
+
+    except requests.exceptions.ConnectionError:
+        print("Page connection error")
+        sys.exit(1)
 
     if "404" in product_page.__repr__():
         print("Product not found, ASIN:", parsed_checked_asin)
@@ -225,13 +230,8 @@ def create_db(db_user_name, db_user_pass, db_name):
         Column("top_critical_review", String),
     )
 
-    try:
-        meta.create_all(engine)
-        db_conn = engine.connect()
-
-    except OperationalError:
-        print("Database connection error")
-        sys.exit(1)
+    meta.create_all(engine)
+    db_conn = engine.connect()
 
     return db_conn, engine, asins, product_info, reviews
 
@@ -328,6 +328,13 @@ def usage():
 
 
 def check_opts_args(argv):
+    try:
+        opts, _ = getopt.getopt(argv, "k:u:p:d:i:")
+
+    except getopt.GetoptError:
+        usage()
+        sys.exit(1)
+
     if "-k" and "-u" and "-p" and "-d" not in argv:
         usage()
         sys.exit(1)
@@ -338,13 +345,6 @@ def check_opts_args(argv):
 
     if "-i" not in argv:
         argv.extend(["-i", "asins.csv"])
-
-    try:
-        opts, _ = getopt.getopt(argv, "k:u:p:d:i:")
-
-    except getopt.GetoptError:
-        usage()
-        sys.exit(1)
 
     return opts
 
@@ -403,24 +403,29 @@ def main(argv):
 
     client = connect_to_api(api_key)
 
-    db_conn, engine, asins, product_info, reviews = create_db(
-        db_user_name, db_user_pass, db_name
-    )
-
-    for parsed_asin in parsed_checked_asins:
-        init_parsed_asin = parsed_asin
-
-        init_db(db_conn, parsed_asin, asins, product_info, reviews)
-        modify_db(
-            db_conn,
-            asins,
-            product_info,
-            reviews,
-            init_parsed_asin,
-            *scrap_page(client, parsed_asin),
+    try:
+        db_conn, engine, asins, product_info, reviews = create_db(
+            db_user_name, db_user_pass, db_name
         )
 
-    # drop_db_tables(engine, product_info, reviews, asins)
+        for parsed_asin in parsed_checked_asins:
+            init_parsed_asin = parsed_asin
+
+            init_db(db_conn, parsed_asin, asins, product_info, reviews)
+            modify_db(
+                db_conn,
+                asins,
+                product_info,
+                reviews,
+                init_parsed_asin,
+                *scrap_page(client, parsed_asin),
+            )
+
+        # drop_db_tables(engine, product_info, reviews, asins)
+
+    except OperationalError:
+        print("Database connection error")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
