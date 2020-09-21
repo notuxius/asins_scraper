@@ -12,12 +12,12 @@ pip install -r requirements.txt
 
 ## Usage
 
-```bash
+```
 asins_scraper.py -k <api_key> -u <db_user_name> -p <db_user_pass> -d <db_name> [-i <csv_file>]
 ```
 
 
-For scraping you will need a key from Scraper API https://www.scraperapi.com/.
+For scraping you will need a key from Scraper API https://www.scraperapi.com/
 
 PostgreSQL database on localhost with default port (5432) is used for storing scraped info.
 

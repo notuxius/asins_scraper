@@ -12,15 +12,6 @@ def print_usage_and_exit():
     print(
         "asins_scraper.py -k <api_key> -u <db_user_name> -p <db_user_pass> -d <db_name> [-i <csv_file>]"
     )
-    print(
-        "File with name 'asins.csv' is used by default if input ASINs CSV file is not provided"
-    )
-    print(
-        "Scraper API https://www.scraperapi.com/ is used for scraping info from products' pages"
-    )
-    print(
-        "PostgreSQL database on localhost with default port is used for storing scraped info"
-    )
     sys.exit(1)
 
 
@@ -30,6 +21,12 @@ def print_error_and_exit(error):
 
 
 def get_page_soup(client, url, parsed_checked_asin):
+    if "dp" in url:
+        print("Accessing product page, ASIN:", parsed_checked_asin)
+
+    if "reviews" in url:
+        print("Accessing product reviews page, ASIN:", parsed_checked_asin)
+
     try:
         product_page = client.get(url)
 

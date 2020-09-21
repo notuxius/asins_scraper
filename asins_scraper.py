@@ -19,7 +19,6 @@ from helpers_db import create_db
 
 
 def get_product_info(client, url, parsed_checked_asin):
-    print("Getting product info, ASIN:", parsed_checked_asin)
     product_page = get_page_soup(client, url, parsed_checked_asin)
 
     product_info = []
@@ -27,19 +26,20 @@ def get_product_info(client, url, parsed_checked_asin):
     if product_page:
         product_info.append(parsed_checked_asin)
 
-        # page elements' locators for scraping
+        # page elements locators for scraping
         product = {
-            "Product name:": ["productTitle", True],
-            "Number of ratings:": [
+            "product name": ["productTitle", True],
+            "number of ratings": [
                 "acrCustomerReviewText",
                 False,
             ],
-            "Average rating:": ["acrPopover", False, "span"],
-            "Number of questions:": ["askATFLink", False, "span"],
+            "average rating": ["acrPopover", False, "span"],
+            "number of questions": ["askATFLink", False, "span"],
         }
 
         for info in product:
-            # scraping product info by elements' ids
+            print(f"Getting {info}, ASIN:", parsed_checked_asin)
+            # scraping product info by elements ids
             elem_loc = product_page.find(id=f"{product[info][0]}")
 
             if elem_loc:
@@ -66,12 +66,12 @@ def get_product_info(client, url, parsed_checked_asin):
 
 
 def get_reviews(client, url, parsed_checked_asin):
-    print("Getting reviews, ASIN:", parsed_checked_asin)
     product_reviews_page = get_page_soup(client, url, parsed_checked_asin)
 
     reviews = []
 
     # scraping number of reviews
+    print(f"Getting number of reviews, ASIN:", parsed_checked_asin)
     try:
         reviews.append(
             prepare_text(
@@ -84,11 +84,12 @@ def get_reviews(client, url, parsed_checked_asin):
     except AttributeError:
         reviews.append(None)
 
-    top_reviews = ["Top positive review:", "Top critical review:"]
+    top_reviews = ["top positive review", "top critical review"]
 
-    for top_review_index, _ in enumerate(top_reviews):
+    for top_review_index, top_review in enumerate(top_reviews):
         try:
-            # scraping top reviews' headings
+            print(f"Getting {top_review}, ASIN:", parsed_checked_asin)
+            # scraping top reviews headings
             reviews.append(
                 prepare_text(
                     product_reviews_page.find_all(
@@ -96,7 +97,7 @@ def get_reviews(client, url, parsed_checked_asin):
                     )[top_review_index],
                 )
                 + "\n"
-                # scraping top reviews' text
+                # scraping top reviews text
                 + prepare_text(
                     product_reviews_page.find_all(
                         "div", {"class": "a-row a-spacing-top-mini"}
