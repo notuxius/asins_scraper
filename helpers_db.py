@@ -1,3 +1,5 @@
+import datetime
+
 from sqlalchemy import (
     Column,
     DateTime,
@@ -35,11 +37,11 @@ def create_db(db_user_name, db_user_pass, db_name):
             ForeignKey("asins.asin", ondelete="CASCADE"),
             primary_key=True,
         ),
-        Column("created_at", DateTime),
-        Column("name", String),
-        Column("number_of_ratings", Integer),
-        Column("average_rating", Float),
-        Column("number_of_questions", Integer),
+        Column("created_at", DateTime, nullable=False, default=datetime.datetime.now()),
+        Column("name", String, nullable=False, default=""),
+        Column("number_of_ratings", Integer, nullable=False, default=0),
+        Column("average_rating", Float, nullable=False, default=0.0),
+        Column("number_of_questions", Integer, nullable=False, default=0),
     )
 
     reviews = Table(
@@ -51,9 +53,9 @@ def create_db(db_user_name, db_user_pass, db_name):
             ForeignKey("asins.asin", ondelete="CASCADE"),
             primary_key=True,
         ),
-        Column("number_of_reviews", Integer),
-        Column("top_positive_review", String),
-        Column("top_critical_review", String),
+        Column("number_of_reviews", Integer, nullable=False, default=0),
+        Column("top_positive_review", String, nullable=False, default=""),
+        Column("top_critical_review", String, nullable=False, default=""),
     )
 
     meta.create_all(engine)

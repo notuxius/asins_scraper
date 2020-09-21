@@ -45,7 +45,7 @@ def get_product_info(client, url, parsed_checked_asin):
             if elem_loc:
                 # TODO refactor into one locator
                 try:
-                    # use more granular locator if id is not enough
+                    # use more accurate locator if id is not enough
                     elem_loc = elem_loc.findChildren(product[info][2], recursive=False)[
                         0
                     ]
@@ -54,13 +54,16 @@ def get_product_info(client, url, parsed_checked_asin):
                 except IndexError:
                     pass
 
-            product_info.append(
-                prepare_text(
-                    elem_loc,
-                    # just strip info or not
-                    just_strip=product[info][1],
+                product_info.append(
+                    prepare_text(
+                        elem_loc,
+                        # just strip info or not
+                        just_strip=product[info][1],
+                    )
                 )
-            )
+
+            else:
+                product_info.append(None)
 
     return product_info
 
@@ -134,7 +137,7 @@ def scrap_page(client, parsed_checked_asin):
         )
 
     else:
-        # TODO refactor returning nones for modify_db if product was not found
+        # TODO use keyword args for modify_db if product was not found
         return [None] * 8
 
     # print(scraped_info)
@@ -202,9 +205,12 @@ def modify_db(
                 {
                     "created_at": datetime.datetime.now(),
                     "name": scraped_product_name,
-                    "number_of_ratings": scraped_number_of_ratings,
-                    "average_rating": scraped_average_rating,
-                    "number_of_questions": scraped_number_of_questions,
+                    "number_of_ratings": scraped_number_of_ratings
+                    or product_info.c.number_of_ratings.default.arg,
+                    "average_rating": scraped_average_rating
+                    or product_info.c.average_rating.default.arg,
+                    "number_of_questions": scraped_number_of_questions
+                    or product_info.c.number_of_questions.default.arg,
                 }
             )
             .where(product_info.c.asin == parsed_checked_asin)
@@ -216,9 +222,12 @@ def modify_db(
             reviews.update()
             .values(
                 {
-                    "number_of_reviews": scraped_number_of_reviews,
-                    "top_positive_review": scraped_top_positive_review,
-                    "top_critical_review": scraped_top_critical_review,
+                    "number_of_reviews": scraped_number_of_reviews
+                    or reviews.c.number_of_reviews.default.arg,
+                    "top_positive_review": scraped_top_positive_review
+                    or reviews.c.top_positive_review.default.arg,
+                    "top_critical_review": scraped_top_critical_review
+                    or reviews.c.top_critical_review.default.arg,
                 }
             )
             .where(reviews.c.asin == parsed_checked_asin)
