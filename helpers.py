@@ -13,7 +13,7 @@ def print_usage_and_exit():
         "asins_scraper.py -k <api_key> -u <db_user_name> -p <db_user_pass> -d <db_name> [-i <csv_file>]"
     )
     print(
-        "File with name 'asins.csv' is used for parsing ASINs if CSV file is not provided"
+        "File with name 'asins.csv' is used by default if input ASINs CSV file is not provided"
     )
     print(
         "Scraper API https://www.scraperapi.com/ is used for scraping info from products' pages"
@@ -37,7 +37,7 @@ def get_page_soup(client, url, parsed_checked_asin):
         print_error_and_exit("Page connection error")
 
     if "404" in product_page.__repr__():
-        print("Product not found, ASIN:", parsed_checked_asin)
+        print("Product page not found, ASIN:", parsed_checked_asin)
         return None
 
     return BeautifulSoup(product_page.text, "lxml")
@@ -60,6 +60,7 @@ def prepare_text(page_elem, just_strip=True, prepare_num_of_reviews=False):
 
 
 def check_opts_args(argv):
+    # provide default option and argument for input file if it's not provided
     if "-i" not in argv:
         argv.extend(["-i", "asins.csv"])
 
@@ -79,6 +80,7 @@ def check_opts_args(argv):
 
 
 def check_asins(parsed_asins):
+    # check for exact 10 alphanumeric symbols long string
     asins_pattern = re.compile("^[A-Za-z0-9]{10}$")
     checked_asins = []
 

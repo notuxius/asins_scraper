@@ -27,6 +27,7 @@ def get_product_info(client, url, parsed_checked_asin):
     if product_page:
         product_info.append(parsed_checked_asin)
 
+        # page elements' locators for scraping
         product = {
             "Product name:": ["productTitle", True],
             "Number of ratings:": [
@@ -38,6 +39,7 @@ def get_product_info(client, url, parsed_checked_asin):
         }
 
         for info in product:
+            # scraping product name
             elem_loc = product_page.find(id=f"{product[info][0]}")
 
             if elem_loc:
@@ -46,12 +48,14 @@ def get_product_info(client, url, parsed_checked_asin):
                         0
                     ]
 
+                # do nothing if there are no product questions or ratings
                 except IndexError:
                     pass
 
             product_info.append(
                 prepare_text(
                     elem_loc,
+                    # just strip info or not
                     just_strip=product[info][1],
                 )
             )
@@ -65,6 +69,7 @@ def get_reviews(client, url, parsed_checked_asin):
 
     reviews = []
 
+    # scraping number of reviews
     try:
         reviews.append(
             prepare_text(
@@ -81,6 +86,7 @@ def get_reviews(client, url, parsed_checked_asin):
 
     for top_review_index, _ in enumerate(top_reviews):
         try:
+            # scraping top reviews' headings
             reviews.append(
                 prepare_text(
                     product_reviews_page.find_all(
@@ -88,6 +94,7 @@ def get_reviews(client, url, parsed_checked_asin):
                     )[top_review_index],
                 )
                 + "\n"
+                # scraping top reviews' text
                 + prepare_text(
                     product_reviews_page.find_all(
                         "div", {"class": "a-row a-spacing-top-mini"}
@@ -124,6 +131,7 @@ def scrap_page(client, parsed_checked_asin):
         )
 
     else:
+        # TODO refactor returning nones for modify_db if product was not found
         return [None] * 8
 
     # print(scraped_info)
@@ -162,6 +170,7 @@ def init_db(db_conn, parsed_checked_asin, *tables):
                 ],
             )
 
+        # do nothing if asin is already in db
         except IntegrityError:
             pass
 
@@ -217,7 +226,7 @@ def modify_db(
         db_conn.execute(asins.delete().where(asins.c.asin == init_parsed_asin))
 
 
-def drop_db_tables(engine, *tables):
+def erase_db_tables(engine, *tables):
     for table in tables:
         print("Removing table from database:", table)
         table.drop(engine)
@@ -227,6 +236,7 @@ def main(argv):
     abs_path = os.path.abspath(__file__)
     dir_name = os.path.dirname(abs_path)
 
+    # checking options and arguments provided
     for opt, arg in check_opts_args(argv):
         if opt == "-k":
             api_key = arg
@@ -245,6 +255,7 @@ def main(argv):
             parsed_asins = parse_csv(csv_file)
             parsed_checked_asins = check_asins(parsed_asins)
 
+    # connecting to scraper api
     client = connect_to_api(api_key)
 
     try:
@@ -255,17 +266,20 @@ def main(argv):
         for parsed_asin in parsed_checked_asins:
             init_parsed_asin = parsed_asin
 
+            # initialize db with asins
             init_db(db_conn, parsed_asin, asins, product_info, reviews)
+
             modify_db(
                 db_conn,
                 asins,
                 product_info,
                 reviews,
                 init_parsed_asin,
+                # scraping pages with asins and returning info
                 *scrap_page(client, parsed_asin),
             )
 
-        # drop_db_tables(engine, product_info, reviews, asins)
+        # erase_db_tables(engine, product_info, reviews, asins)
 
     except OperationalError:
         print_error_and_exit("Database connection error")
