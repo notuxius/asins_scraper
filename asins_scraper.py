@@ -24,13 +24,34 @@ from sqlalchemy import (
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 
+def print_usage_and_exit():
+    print("Usage:")
+    print(
+        "asins_scraper.py -k <api_key> -u <db_user_name> -p <db_user_pass> -d <db_name> [-i <csv_file>]"
+    )
+    print(
+        "File with name 'asins.csv' is used for parsing ASINs if CSV file is not provided"
+    )
+    print(
+        "Scraper API https://www.scraperapi.com/ is used for scraping info from products' pages"
+    )
+    print(
+        "PostgreSQL database on localhost with default port is used for storing scraped info"
+    )
+    sys.exit(1)
+
+
+def print_error_and_exit(error):
+    print(error)
+    sys.exit(1)
+
+
 def get_page_soup(client, url, parsed_checked_asin):
     try:
         product_page = client.get(url)
 
     except requests.exceptions.ConnectionError:
-        print("Page connection error")
-        sys.exit(1)
+        print_error_and_exit("Page connection error")
 
     if "404" in product_page.__repr__():
         print("Product not found, ASIN:", parsed_checked_asin)
@@ -182,8 +203,7 @@ def parse_csv(csv_file):
             return uniq_flatten_stripped_list
 
     except OSError:
-        print("Input file read error")
-        sys.exit(1)
+        print_error_and_exit("Input file read error")
 
 
 def create_db(db_user_name, db_user_pass, db_name):
@@ -311,40 +331,21 @@ def drop_db_tables(engine, *tables):
         table.drop(engine)
 
 
-def usage():
-    print("Usage:")
-    print(
-        "asins_scraper.py -k <api_key> -u <db_user_name> -p <db_user_pass> -d <db_name> [-i <csv_file>]"
-    )
-    print(
-        "File with name 'asins.csv' is used for parsing ASINs if CSV file is not provided"
-    )
-    print(
-        "Scraper API https://www.scraperapi.com/ is used for scraping info from products' pages"
-    )
-    print(
-        "PostgreSQL database on localhost with default port is used for storing scraped info"
-    )
-
-
 def check_opts_args(argv):
+    if "-i" not in argv:
+        argv.extend(["-i", "asins.csv"])
+
     try:
         opts, _ = getopt.getopt(argv, "k:u:p:d:i:")
 
     except getopt.GetoptError:
-        usage()
-        sys.exit(1)
+        print_usage_and_exit()
 
     if "-k" and "-u" and "-p" and "-d" not in argv:
-        usage()
-        sys.exit(1)
+        print_usage_and_exit()
 
     if "-" in argv:
-        usage()
-        sys.exit(1)
-
-    if "-i" not in argv:
-        argv.extend(["-i", "asins.csv"])
+        print_usage_and_exit()
 
     return opts
 
@@ -355,12 +356,10 @@ def connect_to_api(api_key):
         status = client.account()
 
     except requests.exceptions.ConnectionError:
-        print("Scraper API connection error")
-        sys.exit(1)
+        print_error_and_exit("Scraper API connection error")
 
     if "error" in status:
-        print("Scraper API key error")
-        sys.exit(1)
+        print_error_and_exit("Scraper API key error")
 
     return client
 
@@ -424,8 +423,7 @@ def main(argv):
         # drop_db_tables(engine, product_info, reviews, asins)
 
     except OperationalError:
-        print("Database connection error")
-        sys.exit(1)
+        print_error_and_exit("Database connection error")
 
 
 if __name__ == "__main__":
