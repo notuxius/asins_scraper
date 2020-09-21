@@ -1,79 +1,21 @@
 # -*- coding: utf-8 -*-
 import csv
 import datetime
-import getopt
 import os
-import re
 import sys
 from collections import OrderedDict
 
-import requests
-from bs4 import BeautifulSoup
-from scraper_api import ScraperAPIClient
-from sqlalchemy import (
-    Column,
-    DateTime,
-    Float,
-    ForeignKey,
-    Integer,
-    MetaData,
-    String,
-    Table,
-    create_engine,
-)
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-
-def print_usage_and_exit():
-    print("Usage:")
-    print(
-        "asins_scraper.py -k <api_key> -u <db_user_name> -p <db_user_pass> -d <db_name> [-i <csv_file>]"
-    )
-    print(
-        "File with name 'asins.csv' is used for parsing ASINs if CSV file is not provided"
-    )
-    print(
-        "Scraper API https://www.scraperapi.com/ is used for scraping info from products' pages"
-    )
-    print(
-        "PostgreSQL database on localhost with default port is used for storing scraped info"
-    )
-    sys.exit(1)
-
-
-def print_error_and_exit(error):
-    print(error)
-    sys.exit(1)
-
-
-def get_page_soup(client, url, parsed_checked_asin):
-    try:
-        product_page = client.get(url)
-
-    except requests.exceptions.ConnectionError:
-        print_error_and_exit("Page connection error")
-
-    if "404" in product_page.__repr__():
-        print("Product not found, ASIN:", parsed_checked_asin)
-        return None
-
-    return BeautifulSoup(product_page.text, "lxml")
-
-
-def prepare_text(page_elem, just_strip=True, prepare_num_of_reviews=False):
-    if page_elem:
-
-        elem_text = page_elem.text
-
-        if just_strip:
-            return elem_text.strip()
-
-        elem_text = elem_text.replace(",", "").replace("+", "")
-
-        if prepare_num_of_reviews:
-            return elem_text.split("|")[1].strip().split(" ")[0]
-
-        return elem_text.split(" ")[0].strip()
+from helpers import (
+    check_asins,
+    check_opts_args,
+    connect_to_api,
+    get_page_soup,
+    prepare_text,
+    print_error_and_exit,
+)
+from helpers_db import create_db
 
 
 def get_product_info(client, url, parsed_checked_asin):
@@ -206,56 +148,6 @@ def parse_csv(csv_file):
         print_error_and_exit("Input file read error")
 
 
-def create_db(db_user_name, db_user_pass, db_name):
-    DATABASE_URI = (
-        f"postgres+psycopg2://{db_user_name}:{db_user_pass}@localhost:5432/{db_name}"
-    )
-    engine = create_engine(DATABASE_URI, echo=False)
-
-    meta = MetaData()
-
-    asins = Table(
-        "asins",
-        meta,
-        Column("asin", String, primary_key=True),
-    )
-
-    product_info = Table(
-        "product_info",
-        meta,
-        Column(
-            "asin",
-            String,
-            ForeignKey("asins.asin", ondelete="CASCADE"),
-            primary_key=True,
-        ),
-        Column("created_at", DateTime),
-        Column("name", String),
-        Column("number_of_ratings", Integer),
-        Column("average_rating", Float),
-        Column("number_of_questions", Integer),
-    )
-
-    reviews = Table(
-        "reviews",
-        meta,
-        Column(
-            "asin",
-            String,
-            ForeignKey("asins.asin", ondelete="CASCADE"),
-            primary_key=True,
-        ),
-        Column("number_of_reviews", Integer),
-        Column("top_positive_review", String),
-        Column("top_critical_review", String),
-    )
-
-    meta.create_all(engine)
-    db_conn = engine.connect()
-
-    return db_conn, engine, asins, product_info, reviews
-
-
 def init_db(db_conn, parsed_checked_asin, *tables):
     print("Writing ASIN to database:", parsed_checked_asin)
 
@@ -331,53 +223,6 @@ def drop_db_tables(engine, *tables):
         table.drop(engine)
 
 
-def check_opts_args(argv):
-    if "-i" not in argv:
-        argv.extend(["-i", "asins.csv"])
-
-    try:
-        opts, _ = getopt.getopt(argv, "k:u:p:d:i:")
-
-    except getopt.GetoptError:
-        print_usage_and_exit()
-
-    if "-k" and "-u" and "-p" and "-d" not in argv:
-        print_usage_and_exit()
-
-    if "-" in argv:
-        print_usage_and_exit()
-
-    return opts
-
-
-def connect_to_api(api_key):
-    try:
-        client = ScraperAPIClient(api_key)
-        status = client.account()
-
-    except requests.exceptions.ConnectionError:
-        print_error_and_exit("Scraper API connection error")
-
-    if "error" in status:
-        print_error_and_exit("Scraper API key error")
-
-    return client
-
-
-def regex_check(parsed_asins):
-    asins_pattern = re.compile("^[A-Za-z0-9]{10}$")
-    checked_asins = []
-
-    for parsed_asin in parsed_asins:
-        if asins_pattern.match(parsed_asin):
-            checked_asins.append(parsed_asin)
-
-        else:
-            print("Not valid ASIN:", parsed_asin)
-
-    return checked_asins
-
-
 def main(argv):
     abs_path = os.path.abspath(__file__)
     dir_name = os.path.dirname(abs_path)
@@ -398,7 +243,7 @@ def main(argv):
         if opt == "-i":
             csv_file = os.path.join(dir_name, arg)
             parsed_asins = parse_csv(csv_file)
-            parsed_checked_asins = regex_check(parsed_asins)
+            parsed_checked_asins = check_asins(parsed_asins)
 
     client = connect_to_api(api_key)
 
