@@ -15,6 +15,7 @@ def create_db(db_user_name, db_user_pass, db_name):
     DATABASE_URI = (
         f"postgres+psycopg2://{db_user_name}:{db_user_pass}@localhost:5432/{db_name}"
     )
+    # connect to db with provided credentials and db name
     engine = create_engine(DATABASE_URI, echo=False)
 
     meta = MetaData()

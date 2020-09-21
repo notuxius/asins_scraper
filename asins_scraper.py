@@ -39,11 +39,13 @@ def get_product_info(client, url, parsed_checked_asin):
         }
 
         for info in product:
-            # scraping product name
+            # scraping product info by elements' ids
             elem_loc = product_page.find(id=f"{product[info][0]}")
 
             if elem_loc:
+                # TODO refactor into one locator
                 try:
+                    # use more granular locator if id is not enough
                     elem_loc = elem_loc.findChildren(product[info][2], recursive=False)[
                         0
                     ]
