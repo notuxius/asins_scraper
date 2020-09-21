@@ -3,6 +3,7 @@ import csv
 import datetime
 import getopt
 import os
+import re
 import sys
 from collections import OrderedDict
 
@@ -23,11 +24,11 @@ from sqlalchemy import (
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 
-def get_page_soup(client, url, parsed_asin):
+def get_page_soup(client, url, parsed_checked_asin):
     product_page = client.get(url)
 
     if "404" in product_page.__repr__():
-        print("Product not found, ASIN:", parsed_asin)
+        print("Product not found, ASIN:", parsed_checked_asin)
         return None
 
     return BeautifulSoup(product_page.text, "lxml")
@@ -49,14 +50,14 @@ def prepare_text(page_elem, just_strip=True, prepare_num_of_reviews=False):
         return elem_text.split(" ")[0].strip()
 
 
-def get_product_info(client, url, parsed_asin):
-    print("Getting product info, ASIN:", parsed_asin)
-    product_page = get_page_soup(client, url, parsed_asin)
+def get_product_info(client, url, parsed_checked_asin):
+    print("Getting product info, ASIN:", parsed_checked_asin)
+    product_page = get_page_soup(client, url, parsed_checked_asin)
 
     product_info = []
 
     if product_page:
-        product_info.append(parsed_asin)
+        product_info.append(parsed_checked_asin)
 
         product = {
             "Product name:": ["productTitle", True],
@@ -90,9 +91,9 @@ def get_product_info(client, url, parsed_asin):
     return product_info
 
 
-def get_reviews(client, url, parsed_asin):
-    print("Getting reviews, ASIN:", parsed_asin)
-    product_reviews_page = get_page_soup(client, url, parsed_asin)
+def get_reviews(client, url, parsed_checked_asin):
+    print("Getting reviews, ASIN:", parsed_checked_asin)
+    product_reviews_page = get_page_soup(client, url, parsed_checked_asin)
 
     reviews = []
 
@@ -132,7 +133,7 @@ def get_reviews(client, url, parsed_asin):
     return reviews
 
 
-def scrap_page(client, parsed_asin):
+def scrap_page(client, parsed_checked_asin):
     amazon_base_url = "https://www.amazon.com/"
     amazon_product_url = f"{amazon_base_url}dp/"
     amazon_product_reviews_url = f"{amazon_base_url}product-reviews/"
@@ -140,7 +141,7 @@ def scrap_page(client, parsed_asin):
     scraped_info = []
 
     product = get_product_info(
-        client, f"{amazon_product_url}{parsed_asin}", parsed_asin
+        client, f"{amazon_product_url}{parsed_checked_asin}", parsed_checked_asin
     )
 
     if product:
@@ -148,7 +149,9 @@ def scrap_page(client, parsed_asin):
 
         scraped_info.extend(
             get_reviews(
-                client, f"{amazon_product_reviews_url}{parsed_asin}", parsed_asin
+                client,
+                f"{amazon_product_reviews_url}{parsed_checked_asin}",
+                parsed_checked_asin,
             )
         )
 
@@ -164,9 +167,14 @@ def parse_csv(csv_file):
         with open(csv_file, newline="") as csv_file_handle:
             parsed_list = list(csv.reader(csv_file_handle))
             flatten_list = [item for sub_list in parsed_list for item in sub_list]
-            uniq_flatten_list = list(OrderedDict.fromkeys(flatten_list))
+            flatten_stripped_list_gen = (item.strip() for item in flatten_list)
+            flatten_stripped_list = [item for item in flatten_stripped_list_gen if item]
 
-            return uniq_flatten_list
+            uniq_flatten_stripped_list = list(
+                OrderedDict.fromkeys(flatten_stripped_list)
+            )
+
+            return uniq_flatten_stripped_list
 
     except OSError:
         print("Input file read error")
@@ -228,8 +236,8 @@ def create_db(db_user_name, db_user_pass, db_name):
     return db_conn, engine, asins, product_info, reviews
 
 
-def init_db(db_conn, parsed_asin, *tables):
-    print("Writing ASIN to database:", parsed_asin)
+def init_db(db_conn, parsed_checked_asin, *tables):
+    print("Writing ASIN to database:", parsed_checked_asin)
 
     for table in tables:
         try:
@@ -237,7 +245,7 @@ def init_db(db_conn, parsed_asin, *tables):
                 table.insert(),
                 [
                     {
-                        "asin": parsed_asin,
+                        "asin": parsed_checked_asin,
                     },
                 ],
             )
@@ -252,7 +260,7 @@ def modify_db(
     product_info,
     reviews,
     init_parsed_asin,
-    parsed_asin,
+    parsed_checked_asin,
     scraped_product_name,
     scraped_number_of_ratings,
     scraped_average_rating,
@@ -261,8 +269,8 @@ def modify_db(
     scraped_top_positive_review,
     scraped_top_critical_review,
 ):
-    if parsed_asin:
-        print("Writing product info to database, ASIN:", parsed_asin)
+    if parsed_checked_asin:
+        print("Writing product info to database, ASIN:", parsed_checked_asin)
 
         db_conn.execute(
             product_info.update()
@@ -275,10 +283,10 @@ def modify_db(
                     "number_of_questions": scraped_number_of_questions,
                 }
             )
-            .where(product_info.c.asin == parsed_asin)
+            .where(product_info.c.asin == parsed_checked_asin)
         )
 
-        print("Writing reviews to database, ASIN:", parsed_asin)
+        print("Writing reviews to database, ASIN:", parsed_checked_asin)
 
         db_conn.execute(
             reviews.update()
@@ -289,7 +297,7 @@ def modify_db(
                     "top_critical_review": scraped_top_critical_review,
                 }
             )
-            .where(reviews.c.asin == parsed_asin)
+            .where(reviews.c.asin == parsed_checked_asin)
         )
 
     else:
@@ -312,7 +320,7 @@ def usage():
         "File with name 'asins.csv' is used for parsing ASINs if CSV file is not provided"
     )
     print(
-        "Scraper API https://www.scraperapi.com/ is used scraping info from products' pages"
+        "Scraper API https://www.scraperapi.com/ is used for scraping info from products' pages"
     )
     print(
         "PostgreSQL database on localhost with default port is used for storing scraped info"
@@ -357,15 +365,25 @@ def connect_to_api(api_key):
     return client
 
 
+def regex_check(parsed_asins):
+    asins_pattern = re.compile("^[A-Za-z0-9]{10}$")
+    checked_asins = []
+
+    for parsed_asin in parsed_asins:
+        if asins_pattern.match(parsed_asin):
+            checked_asins.append(parsed_asin)
+
+        else:
+            print("Not valid ASIN:", parsed_asin)
+
+    return checked_asins
+
+
 def main(argv):
     abs_path = os.path.abspath(__file__)
     dir_name = os.path.dirname(abs_path)
 
     for opt, arg in check_opts_args(argv):
-        if opt == "-i":
-            csv_file = os.path.join(dir_name, arg)
-            parsed_asins = parse_csv(csv_file)
-
         if opt == "-k":
             api_key = arg
 
@@ -378,13 +396,18 @@ def main(argv):
         if opt == "-d":
             db_name = arg
 
+        if opt == "-i":
+            csv_file = os.path.join(dir_name, arg)
+            parsed_asins = parse_csv(csv_file)
+            parsed_checked_asins = regex_check(parsed_asins)
+
     client = connect_to_api(api_key)
 
     db_conn, engine, asins, product_info, reviews = create_db(
         db_user_name, db_user_pass, db_name
     )
 
-    for parsed_asin in parsed_asins:
+    for parsed_asin in parsed_checked_asins:
         init_parsed_asin = parsed_asin
 
         init_db(db_conn, parsed_asin, asins, product_info, reviews)
