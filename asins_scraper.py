@@ -40,17 +40,18 @@ def get_product_info(client, url, parsed_checked_asin):
         for info in product:
             print(f"Getting {info}, ASIN:", parsed_checked_asin)
             # scraping product info by elements ids
-            elem_loc = product_page.find(id=f"{product[info][0]}")
+            elem_loc = product_page.find(id=product[info][0])
 
             if elem_loc:
                 # TODO refactor into one locator
                 try:
-                    # use more accurate locator if id is not enough
+                    # more accurate locator for elements that require it
                     elem_loc = elem_loc.findChildren(product[info][2], recursive=False)[
                         0
                     ]
 
-                # do nothing if there are no product questions or ratings
+                # if it's not product name or number or ratings
+                # or if there are no product questions or ratings
                 except IndexError:
                     pass
 
@@ -74,7 +75,7 @@ def get_reviews(client, url, parsed_checked_asin):
     reviews = []
 
     # scraping number of reviews
-    print(f"Getting number of reviews, ASIN:", parsed_checked_asin)
+    print("Getting number of reviews, ASIN:", parsed_checked_asin)
     try:
         reviews.append(
             prepare_text(
@@ -84,6 +85,7 @@ def get_reviews(client, url, parsed_checked_asin):
             ),
         )
 
+    # if there are no product number of reviews
     except AttributeError:
         reviews.append(None)
 
@@ -108,7 +110,7 @@ def get_reviews(client, url, parsed_checked_asin):
                 ),
             )
 
-        except IndexError:
+        except (IndexError, AttributeError):
             reviews.append(None)
 
     return reviews
@@ -176,7 +178,7 @@ def init_db(db_conn, parsed_checked_asin, *tables):
                 ],
             )
 
-        # do nothing if asin is already in db
+        # if asin is already in db
         except IntegrityError:
             pass
 
@@ -248,7 +250,6 @@ def main(argv):
     abs_path = os.path.abspath(__file__)
     dir_name = os.path.dirname(abs_path)
 
-    # checking options and arguments provided
     for opt, arg in check_opts_args(argv):
         if opt == "-k":
             api_key = arg
@@ -267,7 +268,6 @@ def main(argv):
             parsed_asins = parse_csv(csv_file)
             parsed_checked_asins = check_asins(parsed_asins)
 
-    # connecting to scraper api
     client = connect_to_api(api_key)
 
     try:
@@ -275,19 +275,20 @@ def main(argv):
             db_user_name, db_user_pass, db_name
         )
 
-        for parsed_asin in parsed_checked_asins:
+        for parsed_asin in parsed_checked_asins[:8]:
             init_parsed_asin = parsed_asin
 
-            # initialize db with asins
+            # write asins to db
             init_db(db_conn, parsed_asin, asins, product_info, reviews)
 
+            # write product info and reviews to db with corresponding asins
             modify_db(
                 db_conn,
                 asins,
                 product_info,
                 reviews,
                 init_parsed_asin,
-                # scraping pages with asins and returning info
+                # return product info and reviews for asin
                 *scrap_page(client, parsed_asin),
             )
 

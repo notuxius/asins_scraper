@@ -21,11 +21,12 @@ def print_error_and_exit(error):
 
 
 def get_page_soup(client, url, parsed_checked_asin):
-    if "dp" in url:
-        print("Accessing product page, ASIN:", parsed_checked_asin)
+    page_type = ""
 
-    if "reviews" in url:
-        print("Accessing product reviews page, ASIN:", parsed_checked_asin)
+    if "/product-reviews/" in url:
+        page_type = " reviews"
+
+    print(f"Accessing product{page_type} page, ASIN:", parsed_checked_asin)
 
     try:
         product_page = client.get(url)
@@ -77,7 +78,7 @@ def check_opts_args(argv):
 
 
 def check_asins(parsed_asins):
-    # check for exact 10 alphanumeric symbols long string
+    # exactly 10 alphanumeric symbols long asin is valid
     asins_pattern = re.compile("^[A-Za-z0-9]{10}$")
     checked_asins = []
 
