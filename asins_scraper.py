@@ -164,13 +164,13 @@ def parse_csv(csv_file):
         print_error_and_exit("Input file read error")
 
 
-def init_db(db_conn, parsed_checked_asin, *tables):
+def init_db(db_conn, parsed_checked_asin, *db_tables):
     print("Writing ASIN to database:", parsed_checked_asin)
 
-    for table in tables:
+    for db_table in db_tables:
         try:
             db_conn.execute(
-                table.insert(),
+                db_table.insert(),
                 [
                     {
                         "asin": parsed_checked_asin,
@@ -238,12 +238,6 @@ def modify_db(
     else:
         print("Removing from database, ASIN:", init_parsed_asin)
         db_conn.execute(asins.delete().where(asins.c.asin == init_parsed_asin))
-
-
-def erase_db_tables(engine, *tables):
-    for table in tables:
-        print("Removing table from database:", table)
-        table.drop(engine)
 
 
 def main():
@@ -314,28 +308,22 @@ def main():
     client = connect_to_api(api_key)
 
     try:
-        db_conn, engine, asins, product_info, reviews = create_db(
-            db_user_name, db_user_pass, db_name
-        )
+        db_conn, *db_tables = create_db(db_user_name, db_user_pass, db_name)
 
-        for parsed_asin in parsed_checked_asins[:8]:
+        for parsed_asin in parsed_checked_asins:
             init_parsed_asin = parsed_asin
 
             # write asins to db
-            init_db(db_conn, parsed_asin, asins, product_info, reviews)
+            init_db(db_conn, parsed_asin, *db_tables)
 
             # write product info and reviews to db with corresponding asins
             modify_db(
                 db_conn,
-                asins,
-                product_info,
-                reviews,
+                *db_tables,
                 init_parsed_asin,
                 # return product info and reviews for asin
                 *scrap_page(client, parsed_asin),
             )
-
-        # erase_db_tables(engine, product_info, reviews, asins)
 
     except OperationalError:
         print_error_and_exit("Database connection error")
