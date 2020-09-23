@@ -1,4 +1,3 @@
-import getopt
 import re
 import sys
 

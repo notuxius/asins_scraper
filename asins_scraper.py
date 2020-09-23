@@ -2,7 +2,6 @@
 import csv
 import datetime
 import os
-import sys
 from collections import OrderedDict
 import argparse
 
@@ -123,20 +122,20 @@ def scrap_page(client, parsed_checked_asin):
 
     scraped_info = []
 
-    product = get_product_info(
+    product_info = get_product_info(
         client, f"{amazon_product_url}{parsed_checked_asin}", parsed_checked_asin
     )
 
-    if product:
-        scraped_info.extend(product)
+    if product_info:
+        scraped_info.extend(product_info)
 
-        scraped_info.extend(
-            get_reviews(
-                client,
-                f"{amazon_product_reviews_url}{parsed_checked_asin}",
-                parsed_checked_asin,
-            )
+        reviews = get_reviews(
+            client,
+            f"{amazon_product_reviews_url}{parsed_checked_asin}",
+            parsed_checked_asin,
         )
+
+        scraped_info.extend(reviews)
 
     else:
         # TODO use keyword args for modify_db if product was not found
@@ -148,39 +147,19 @@ def scrap_page(client, parsed_checked_asin):
 
 def parse_csv(csv_file):
     try:
-        with open(csv_file, newline="") as csv_file_handle:
-            parsed_list = list(csv.reader(csv_file_handle))
-            flatten_list = [item for sub_list in parsed_list for item in sub_list]
-            flatten_stripped_list_gen = (item.strip() for item in flatten_list)
-            flatten_stripped_list = [item for item in flatten_stripped_list_gen if item]
+        parsed_asins = csv.DictReader(open(csv_file))
+        parsed_list = []
+        for parsed_asin in parsed_asins:
+            stripped_parsed_asin = parsed_asin["asin"].strip()
+            if stripped_parsed_asin:
+                parsed_list.append(stripped_parsed_asin)
 
-            uniq_flatten_stripped_list = list(
-                OrderedDict.fromkeys(flatten_stripped_list)
-            )
+        uniq_parsed_list = list(OrderedDict.fromkeys(parsed_list))
 
-            return uniq_flatten_stripped_list
+        return uniq_parsed_list
 
     except OSError:
         print_error_and_exit("Input file read error")
-
-
-def init_db(db_conn, parsed_checked_asin, *db_tables):
-    print("Writing ASIN to database:", parsed_checked_asin)
-
-    for db_table in db_tables:
-        try:
-            db_conn.execute(
-                db_table.insert(),
-                [
-                    {
-                        "asin": parsed_checked_asin,
-                    },
-                ],
-            )
-
-        # if asin is already in db
-        except IntegrityError:
-            pass
 
 
 def modify_db(
@@ -188,7 +167,7 @@ def modify_db(
     asins,
     product_info,
     reviews,
-    init_parsed_asin,
+    init_parsed_checked_asin,
     parsed_checked_asin,
     scraped_product_name,
     scraped_number_of_ratings,
@@ -198,7 +177,26 @@ def modify_db(
     scraped_top_positive_review,
     scraped_top_critical_review,
 ):
+
     if parsed_checked_asin:
+        print("Writing ASIN to database:", parsed_checked_asin)
+
+        # write asins to all databases
+        for db_table in (asins, product_info, reviews):
+            try:
+                db_conn.execute(
+                    db_table.insert(),
+                    [
+                        {
+                            "asin": parsed_checked_asin,
+                        },
+                    ],
+                )
+
+            # if asin is already in db
+            except IntegrityError:
+                pass
+
         print("Writing product info to database, ASIN:", parsed_checked_asin)
 
         db_conn.execute(
@@ -236,8 +234,15 @@ def modify_db(
         )
 
     else:
-        print("Removing from database, ASIN:", init_parsed_asin)
-        db_conn.execute(asins.delete().where(asins.c.asin == init_parsed_asin))
+        print(
+            "Removing from database, ASIN:",
+            init_parsed_checked_asin,
+        )
+        db_conn.execute(
+            asins.delete().where(
+                asins.c.asin == init_parsed_checked_asin,
+            )
+        )
 
 
 def main():
@@ -302,27 +307,30 @@ def main():
     db_name = parsed_args.db_name
     csv_file = os.path.join(dir_name, parsed_args.csv_file)
 
-    parsed_asins = parse_csv(csv_file)
-    parsed_checked_asins = check_asins(parsed_asins)
-
     client = connect_to_api(api_key)
 
     try:
-        db_conn, *db_tables = create_db(db_user_name, db_user_pass, db_name)
+        # database connection and tables
+        db_conn, asins, product_info, reviews = create_db(
+            db_user_name, db_user_pass, db_name
+        )
 
-        for parsed_asin in parsed_checked_asins:
-            init_parsed_asin = parsed_asin
+        parse_csv(csv_file)
+        parsed_asins = parse_csv(csv_file)
+        parsed_checked_asins = check_asins(parsed_asins)
 
-            # write asins to db
-            init_db(db_conn, parsed_asin, *db_tables)
+        for parsed_checked_asin in parsed_checked_asins:
+            init_parsed_checked_asin = parsed_checked_asin
 
             # write product info and reviews to db with corresponding asins
             modify_db(
                 db_conn,
-                *db_tables,
-                init_parsed_asin,
+                asins,
+                product_info,
+                reviews,
+                init_parsed_checked_asin,
                 # return product info and reviews for asin
-                *scrap_page(client, parsed_asin),
+                *scrap_page(client, parsed_checked_asin),
             )
 
     except OperationalError:
