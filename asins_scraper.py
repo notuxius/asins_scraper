@@ -4,12 +4,12 @@ import datetime
 import os
 import sys
 from collections import OrderedDict
+import argparse
 
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from helpers import (
     check_asins,
-    check_opts_args,
     connect_to_api,
     get_page_soup,
     prepare_text,
@@ -246,27 +246,70 @@ def erase_db_tables(engine, *tables):
         table.drop(engine)
 
 
-def main(argv):
+def main():
+    arg_parser = argparse.ArgumentParser(
+        description="Scrap information from Amazon with ASINs and write it to database"
+    )
+
+    arg_parser.add_argument(
+        "-k",
+        action="store",
+        dest="api_key",
+        required=True,
+        type=str,
+        help="Scraper API key",
+    )
+
+    arg_parser.add_argument(
+        "-u",
+        action="store",
+        dest="db_user_name",
+        required=True,
+        type=str,
+        help="Database user name",
+    )
+
+    arg_parser.add_argument(
+        "-p",
+        action="store",
+        dest="db_user_pass",
+        required=True,
+        type=str,
+        help="Database user password",
+    )
+
+    arg_parser.add_argument(
+        "-d",
+        action="store",
+        dest="db_name",
+        required=True,
+        type=str,
+        help="Database name",
+    )
+
+    arg_parser.add_argument(
+        "-i",
+        action="store",
+        dest="csv_file",
+        required=False,
+        type=str,
+        default="asins.csv",
+        help="ASINs CSV file name",
+    )
+
+    parsed_args = arg_parser.parse_args()
+
     abs_path = os.path.abspath(__file__)
     dir_name = os.path.dirname(abs_path)
 
-    for opt, arg in check_opts_args(argv):
-        if opt == "-k":
-            api_key = arg
+    api_key = parsed_args.api_key
+    db_user_name = parsed_args.db_user_name
+    db_user_pass = parsed_args.db_user_pass
+    db_name = parsed_args.db_name
+    csv_file = os.path.join(dir_name, parsed_args.csv_file)
 
-        if opt == "-u":
-            db_user_name = arg
-
-        if opt == "-p":
-            db_user_pass = arg
-
-        if opt == "-d":
-            db_name = arg
-
-        if opt == "-i":
-            csv_file = os.path.join(dir_name, arg)
-            parsed_asins = parse_csv(csv_file)
-            parsed_checked_asins = check_asins(parsed_asins)
+    parsed_asins = parse_csv(csv_file)
+    parsed_checked_asins = check_asins(parsed_asins)
 
     client = connect_to_api(api_key)
 
@@ -299,4 +342,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()

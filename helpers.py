@@ -7,14 +7,6 @@ from bs4 import BeautifulSoup
 from scraper_api import ScraperAPIClient
 
 
-def print_usage_and_exit():
-    print("Usage:")
-    print(
-        "asins_scraper.py -k <api_key> -u <db_user_name> -p <db_user_pass> -d <db_name> [-i <csv_file>]"
-    )
-    sys.exit(1)
-
-
 def print_error_and_exit(error):
     print(error)
     sys.exit(1)
@@ -55,26 +47,6 @@ def prepare_text(page_elem, just_strip=True, prepare_num_of_reviews=False):
             return elem_text.split("|")[1].strip().split(" ")[0]
 
         return elem_text.split(" ")[0].strip()
-
-
-def check_opts_args(argv):
-    # provide default option and argument for input file if it's not provided
-    if "-i" not in argv:
-        argv.extend(["-i", "asins.csv"])
-
-    try:
-        opts, _ = getopt.getopt(argv, "k:u:p:d:i:")
-
-    except getopt.GetoptError:
-        print_usage_and_exit()
-
-    if "-k" and "-u" and "-p" and "-d" not in argv:
-        print_usage_and_exit()
-
-    if "-" in argv:
-        print_usage_and_exit()
-
-    return opts
 
 
 def check_asins(parsed_asins):
