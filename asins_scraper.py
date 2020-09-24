@@ -11,7 +11,7 @@ from helpers import (
     connect_to_api,
     get_page_soup,
     parse_args,
-    prepare_text,
+    extract_text,
     print_error_and_exit,
 )
 from helpers_db import (
@@ -31,40 +31,22 @@ def get_product_info(client, url, scraped_asin):
 
         # page elements locators for scraping
         product = {
-            "product name": ["productTitle", True],
-            "number of ratings": [
-                "acrCustomerReviewText",
-                False,
-            ],
-            "average rating": ["acrPopover", False, "span"],
-            "number of questions": ["askATFLink", False, "span"],
+            "product name": "#productTitle",
+            "number of ratings": "#acrCustomerReviewText",
+            "average rating": "#acrPopover > span > a > i > span",
+            "number of questions": "#askATFLink > span",
         }
 
         for info in product:
             print(f"Getting {info}, ASIN:", scraped_asin)
-            # scraping product info by elements ids
-            elem_loc = product_page.find(id=product[info][0])
+            elem_loc = product_page.select_one(product[info])
 
             if elem_loc:
-                # TODO refactor into one locator
-                try:
-                    # more accurate locator for elements that require it
-                    elem_loc = elem_loc.findChildren(product[info][2], recursive=False)[
-                        0
-                    ]
+                if info == "product name":
+                    product_info.append(elem_loc.get_text(strip=True))
 
-                # if it's not product name or number or ratings
-                # or if there are no product questions or ratings
-                except IndexError:
-                    pass
-
-                product_info.append(
-                    prepare_text(
-                        elem_loc,
-                        # just strip info or not
-                        just_strip=product[info][1],
-                    )
-                )
+                else:
+                    product_info.append(extract_text(elem_loc))
 
             else:
                 product_info.append(None)
@@ -81,10 +63,7 @@ def get_reviews(client, url, scraped_asin):
     print("Getting number of reviews, ASIN:", scraped_asin)
     try:
         reviews.append(
-            prepare_text(
-                product_reviews_page.find(id="filter-info-section").div.span,
-                just_strip=False,
-            ),
+            extract_text(product_reviews_page.find(id="filter-info-section").div.span),
         )
 
     # if there are no product number of reviews
@@ -98,18 +77,16 @@ def get_reviews(client, url, scraped_asin):
             print(f"Getting {top_review}, ASIN:", scraped_asin)
             # scraping top reviews headings
             reviews.append(
-                prepare_text(
-                    product_reviews_page.find_all(
-                        "span", {"class": "a-size-base review-title a-text-bold"}
-                    )[top_review_index],
-                )
+                product_reviews_page.find_all(
+                    "span", {"class": "a-size-base review-title a-text-bold"}
+                )[top_review_index].get_text(strip=True)
                 + "\n"
                 # scraping top reviews text
-                + prepare_text(
-                    product_reviews_page.find_all(
-                        "div", {"class": "a-row a-spacing-top-mini"}
-                    )[top_review_index].findChildren("span", recursive=False)[0],
-                ),
+                + product_reviews_page.find_all(
+                    "div", {"class": "a-row a-spacing-top-mini"}
+                )[top_review_index]
+                .findChildren("span", recursive=False)[0]
+                .get_text(strip=True),
             )
 
         except (IndexError, AttributeError):
