@@ -1,17 +1,7 @@
 import datetime
 
-from sqlalchemy import (
-    Column,
-    DateTime,
-    Float,
-    ForeignKey,
-    Integer,
-    MetaData,
-    String,
-    Table,
-    create_engine,
-)
-
+from sqlalchemy import (Column, DateTime, Float, ForeignKey, Integer, MetaData,
+                        String, Table, create_engine)
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import exists
 

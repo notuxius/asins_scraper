@@ -1,9 +1,64 @@
+import argparse
 import re
 import sys
 
 import requests
 from bs4 import BeautifulSoup
 from scraper_api import ScraperAPIClient
+
+
+def parse_args():
+    arg_parser = argparse.ArgumentParser(
+        description="Scrap information from Amazon with ASINs and write it to database"
+    )
+
+    arg_parser.add_argument(
+        "-k",
+        action="store",
+        dest="api_key",
+        required=True,
+        type=str,
+        help="Scraper API key",
+    )
+
+    arg_parser.add_argument(
+        "-u",
+        action="store",
+        dest="db_user_name",
+        required=True,
+        type=str,
+        help="Database user name",
+    )
+
+    arg_parser.add_argument(
+        "-p",
+        action="store",
+        dest="db_user_pass",
+        required=True,
+        type=str,
+        help="Database user password",
+    )
+
+    arg_parser.add_argument(
+        "-d",
+        action="store",
+        dest="db_name",
+        required=True,
+        type=str,
+        help="Database name",
+    )
+
+    arg_parser.add_argument(
+        "-i",
+        action="store",
+        dest="csv_file",
+        required=False,
+        type=str,
+        default="asins.csv",
+        help="ASINs CSV file name",
+    )
+
+    return arg_parser.parse_args()
 
 
 def print_error_and_exit(error):

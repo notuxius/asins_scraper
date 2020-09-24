@@ -3,7 +3,6 @@ import csv
 import datetime
 import os
 from collections import OrderedDict
-import argparse
 
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
@@ -11,10 +10,11 @@ from helpers import (
     check_asins,
     connect_to_api,
     get_page_soup,
+    parse_args,
     prepare_text,
     print_error_and_exit,
 )
-from helpers_db import asin_exists_in_table, list_db_tables, init_db, create_db_tables
+from helpers_db import asin_exists_in_table, create_db_tables, init_db, list_db_tables
 
 
 def get_product_info(client, url, scraped_asin):
@@ -224,57 +224,7 @@ def modify_db(
 
 
 def main():
-    arg_parser = argparse.ArgumentParser(
-        description="Scrap information from Amazon with ASINs and write it to database"
-    )
-
-    arg_parser.add_argument(
-        "-k",
-        action="store",
-        dest="api_key",
-        required=True,
-        type=str,
-        help="Scraper API key",
-    )
-
-    arg_parser.add_argument(
-        "-u",
-        action="store",
-        dest="db_user_name",
-        required=True,
-        type=str,
-        help="Database user name",
-    )
-
-    arg_parser.add_argument(
-        "-p",
-        action="store",
-        dest="db_user_pass",
-        required=True,
-        type=str,
-        help="Database user password",
-    )
-
-    arg_parser.add_argument(
-        "-d",
-        action="store",
-        dest="db_name",
-        required=True,
-        type=str,
-        help="Database name",
-    )
-
-    arg_parser.add_argument(
-        "-i",
-        action="store",
-        dest="csv_file",
-        required=False,
-        type=str,
-        default="asins.csv",
-        help="ASINs CSV file name",
-    )
-
-    parsed_args = arg_parser.parse_args()
+    parsed_args = parse_args()
 
     abs_path = os.path.abspath(__file__)
     dir_name = os.path.dirname(abs_path)
