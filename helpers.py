@@ -25,7 +25,7 @@ def get_page_soup(client, url, parsed_checked_asin):
     except requests.exceptions.ConnectionError:
         print_error_and_exit("Page connection error")
 
-    if "404" in product_page.__repr__():
+    if product_page.status_code != 200 or product_page.is_redirect:
         print("Product page not found, ASIN:", parsed_checked_asin)
         return None
 
