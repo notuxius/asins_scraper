@@ -14,7 +14,11 @@ from helpers import (
     prepare_text,
     print_error_and_exit,
 )
-from helpers_db import asin_exists_in_table, create_db_tables, init_db, list_db_tables
+from helpers_db import (
+    asin_exists_in_table,
+    init_db,
+    create_list_db_tables,
+)
 
 
 def get_product_info(client, url, scraped_asin):
@@ -242,7 +246,7 @@ def main():
         meta, db_engine, db_conn = init_db(db_user_name, db_user_pass, db_name)
 
         # use excisting database tables or create new ones
-        db_tables = list_db_tables(meta, db_engine) or create_db_tables(meta, db_engine)
+        db_tables = create_list_db_tables(meta, db_engine)
 
         if db_tables and db_conn:
             parsed_asins = check_asins(parse_csv(csv_file))

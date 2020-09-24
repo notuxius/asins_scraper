@@ -1,7 +1,16 @@
 import datetime
 
-from sqlalchemy import (Column, DateTime, Float, ForeignKey, Integer, MetaData,
-                        String, Table, create_engine)
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    create_engine,
+)
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import exists
 
@@ -26,21 +35,13 @@ def init_db(db_user_name, db_user_pass, db_name):
     return meta, db_engine, db_conn
 
 
-def list_db_tables(meta, db_engine):
-    meta.create_all(db_engine)
-
-    return meta.sorted_tables
-
-
-def create_db_tables(meta, db_engine):
-    print("Creating asins database table")
+def create_list_db_tables(meta, db_engine):
     Table(
         "asins",
         meta,
         Column("asin", String, primary_key=True),
     )
 
-    print("Creating product_info database table")
     Table(
         "product_info",
         meta,
@@ -57,7 +58,6 @@ def create_db_tables(meta, db_engine):
         Column("number_of_questions", Integer, nullable=False, default=0, onupdate=0),
     )
 
-    print("Creating reviews database table")
     Table(
         "reviews",
         meta,
@@ -72,4 +72,6 @@ def create_db_tables(meta, db_engine):
         Column("top_critical_review", String, nullable=False, default="", onupdate=""),
     )
 
-    return list_db_tables(meta, db_engine)
+    meta.create_all(db_engine)
+
+    return meta.sorted_tables
