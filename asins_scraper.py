@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python
 import csv
 import datetime
 import os
@@ -123,7 +123,9 @@ def scrap_page(client, parsed_asin):
 def parse_csv(csv_file):
     try:
         parsed_asins = csv.DictReader(open(csv_file))
+
         parsed_list = []
+
         for parsed_asin in parsed_asins:
             stripped_parsed_asin = parsed_asin["asin"].strip()
             if stripped_parsed_asin:
@@ -228,7 +230,6 @@ def main():
             parsed_asins = check_asins(parse_csv(csv_file))
 
             for parsed_asin in parsed_asins:
-
                 # get product info and reviews for asin
                 scraped_info = scrap_page(client, parsed_asin)
 
