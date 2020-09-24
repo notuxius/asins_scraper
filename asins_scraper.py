@@ -5,7 +5,7 @@ import os
 from collections import OrderedDict
 import argparse
 
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from helpers import (
     check_asins,
@@ -14,16 +14,16 @@ from helpers import (
     prepare_text,
     print_error_and_exit,
 )
-from helpers_db import create_db
+from helpers_db import asin_exists_in_table, list_db_tables, init_db, create_db_tables
 
 
-def get_product_info(client, url, parsed_checked_asin):
-    product_page = get_page_soup(client, url, parsed_checked_asin)
+def get_product_info(client, url, scraped_asin):
+    product_page = get_page_soup(client, url, scraped_asin)
 
     product_info = []
 
     if product_page:
-        product_info.append(parsed_checked_asin)
+        product_info.append(scraped_asin)
 
         # page elements locators for scraping
         product = {
@@ -37,7 +37,7 @@ def get_product_info(client, url, parsed_checked_asin):
         }
 
         for info in product:
-            print(f"Getting {info}, ASIN:", parsed_checked_asin)
+            print(f"Getting {info}, ASIN:", scraped_asin)
             # scraping product info by elements ids
             elem_loc = product_page.find(id=product[info][0])
 
@@ -68,13 +68,13 @@ def get_product_info(client, url, parsed_checked_asin):
     return product_info
 
 
-def get_reviews(client, url, parsed_checked_asin):
-    product_reviews_page = get_page_soup(client, url, parsed_checked_asin)
+def get_reviews(client, url, scraped_asin):
+    product_reviews_page = get_page_soup(client, url, scraped_asin)
 
     reviews = []
 
     # scraping number of reviews
-    print("Getting number of reviews, ASIN:", parsed_checked_asin)
+    print("Getting number of reviews, ASIN:", scraped_asin)
     try:
         reviews.append(
             prepare_text(
@@ -92,7 +92,7 @@ def get_reviews(client, url, parsed_checked_asin):
 
     for top_review_index, top_review in enumerate(top_reviews):
         try:
-            print(f"Getting {top_review}, ASIN:", parsed_checked_asin)
+            print(f"Getting {top_review}, ASIN:", scraped_asin)
             # scraping top reviews headings
             reviews.append(
                 prepare_text(
@@ -115,7 +115,7 @@ def get_reviews(client, url, parsed_checked_asin):
     return reviews
 
 
-def scrap_page(client, parsed_checked_asin):
+def scrap_page(client, parsed_asin):
     amazon_base_url = "https://www.amazon.com/"
     amazon_product_url = f"{amazon_base_url}dp/"
     amazon_product_reviews_url = f"{amazon_base_url}product-reviews/"
@@ -123,7 +123,7 @@ def scrap_page(client, parsed_checked_asin):
     scraped_info = []
 
     product_info = get_product_info(
-        client, f"{amazon_product_url}{parsed_checked_asin}", parsed_checked_asin
+        client, f"{amazon_product_url}{parsed_asin}", parsed_asin
     )
 
     if product_info:
@@ -131,17 +131,12 @@ def scrap_page(client, parsed_checked_asin):
 
         reviews = get_reviews(
             client,
-            f"{amazon_product_reviews_url}{parsed_checked_asin}",
-            parsed_checked_asin,
+            f"{amazon_product_reviews_url}{parsed_asin}",
+            parsed_asin,
         )
 
         scraped_info.extend(reviews)
 
-    else:
-        # TODO use keyword args for modify_db if product was not found
-        return [None] * 8
-
-    # print(scraped_info)
     return scraped_info
 
 
@@ -164,41 +159,36 @@ def parse_csv(csv_file):
 
 def modify_db(
     db_conn,
-    asins,
-    product_info,
-    reviews,
-    init_parsed_checked_asin,
-    parsed_checked_asin,
-    scraped_product_name,
-    scraped_number_of_ratings,
-    scraped_average_rating,
-    scraped_number_of_questions,
-    scraped_number_of_reviews,
-    scraped_top_positive_review,
-    scraped_top_critical_review,
+    db_engine,
+    scraped_info,
+    *db_tables,
 ):
+    asins, product_info, reviews = db_tables
 
-    if parsed_checked_asin:
-        print("Writing ASIN to database:", parsed_checked_asin)
+    (
+        scraped_asin,
+        scraped_product_name,
+        scraped_number_of_ratings,
+        scraped_average_rating,
+        scraped_number_of_questions,
+        scraped_number_of_reviews,
+        scraped_top_positive_review,
+        scraped_top_critical_review,
+    ) = scraped_info
 
-        # write asins to all databases
-        for db_table in (asins, product_info, reviews):
-            try:
+    if scraped_asin:
+        for db_table in db_tables:
+            if not asin_exists_in_table(db_engine, db_table, scraped_asin):
                 db_conn.execute(
                     db_table.insert(),
                     [
                         {
-                            "asin": parsed_checked_asin,
+                            "asin": scraped_asin,
                         },
                     ],
                 )
 
-            # if asin is already in db
-            except IntegrityError:
-                pass
-
-        print("Writing product info to database, ASIN:", parsed_checked_asin)
-
+        print("Writing product info to database, ASIN:", scraped_asin)
         db_conn.execute(
             product_info.update()
             .values(
@@ -213,11 +203,10 @@ def modify_db(
                     or product_info.c.number_of_questions.default.arg,
                 }
             )
-            .where(product_info.c.asin == parsed_checked_asin)
+            .where(product_info.c.asin == scraped_asin)
         )
 
-        print("Writing reviews to database, ASIN:", parsed_checked_asin)
-
+        print("Writing reviews to database, ASIN:", scraped_asin)
         db_conn.execute(
             reviews.update()
             .values(
@@ -230,18 +219,7 @@ def modify_db(
                     or reviews.c.top_critical_review.default.arg,
                 }
             )
-            .where(reviews.c.asin == parsed_checked_asin)
-        )
-
-    else:
-        print(
-            "Removing from database, ASIN:",
-            init_parsed_checked_asin,
-        )
-        db_conn.execute(
-            asins.delete().where(
-                asins.c.asin == init_parsed_checked_asin,
-            )
+            .where(reviews.c.asin == scraped_asin)
         )
 
 
@@ -310,30 +288,33 @@ def main():
     client = connect_to_api(api_key)
 
     try:
-        # database connection and tables
-        db_conn, asins, product_info, reviews = create_db(
-            db_user_name, db_user_pass, db_name
-        )
+        # connect to database
+        meta, db_engine, db_conn = init_db(db_user_name, db_user_pass, db_name)
 
-        parse_csv(csv_file)
-        parsed_asins = parse_csv(csv_file)
-        parsed_checked_asins = check_asins(parsed_asins)
+        # use excisting database tables or create new ones
+        db_tables = list_db_tables(meta, db_engine) or create_db_tables(meta, db_engine)
 
-        for parsed_checked_asin in parsed_checked_asins:
-            init_parsed_checked_asin = parsed_checked_asin
+        if db_tables and db_conn:
+            parsed_asins = check_asins(parse_csv(csv_file))
 
-            # write product info and reviews to db with corresponding asins
-            modify_db(
-                db_conn,
-                asins,
-                product_info,
-                reviews,
-                init_parsed_checked_asin,
-                # return product info and reviews for asin
-                *scrap_page(client, parsed_checked_asin),
-            )
+            for parsed_asin in parsed_asins:
 
-    except OperationalError:
+                # get product info and reviews for asin
+                scraped_info = scrap_page(client, parsed_asin)
+
+                # write product info and reviews for asin to database
+                if scraped_info:
+                    modify_db(
+                        db_conn,
+                        db_engine,
+                        scraped_info,
+                        *db_tables,
+                    )
+
+        else:
+            print_error_and_exit("Database error")
+
+    except (OperationalError, ProgrammingError):
         print_error_and_exit("Database connection error")
 
 

@@ -25,11 +25,12 @@ def get_page_soup(client, url, parsed_checked_asin):
     except requests.exceptions.ConnectionError:
         print_error_and_exit("Page connection error")
 
-    if (
-        "404" in product_page.__repr__()
-        or "Enter characters you see below" in product_page.text
-    ):
-        print("Product page not found or CAPTCHA page, ASIN:", parsed_checked_asin)
+    if "404" in product_page.__repr__():
+        print("Product page not found, ASIN:", parsed_checked_asin)
+        return None
+
+    if "Enter characters you see below" in product_page.text:
+        print("CAPTCHA page is displayed, ASIN:", parsed_checked_asin)
         return None
 
     return BeautifulSoup(product_page.text, "lxml")
