@@ -91,7 +91,7 @@ def get_page_soup(client, url, parsed_checked_asin):
     return BeautifulSoup(product_page.text, "lxml")
 
 
-def prepare_text(page_elem, just_strip=True, prepare_num_of_reviews=False):
+def prepare_text(page_elem, just_strip=True):
     if page_elem:
 
         elem_text = page_elem.text
@@ -101,7 +101,11 @@ def prepare_text(page_elem, just_strip=True, prepare_num_of_reviews=False):
 
         elem_text = elem_text.replace(",", "").replace("+", "")
 
-        if prepare_num_of_reviews:
+        num_of_reviews_pattern = re.compile(
+            r"[0-9]+ global rating(s)? \| [0-9]+ global review(s)?"
+        )
+
+        if num_of_reviews_pattern.match(elem_text.strip()):
             return elem_text.split("|")[1].strip().split(" ")[0]
 
         return elem_text.split(" ")[0].strip()

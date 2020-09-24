@@ -84,7 +84,6 @@ def get_reviews(client, url, scraped_asin):
             prepare_text(
                 product_reviews_page.find(id="filter-info-section").div.span,
                 just_strip=False,
-                prepare_num_of_reviews=True,
             ),
         )
 
