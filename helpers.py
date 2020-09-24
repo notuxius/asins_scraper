@@ -93,11 +93,10 @@ def get_page_soup(client, url, parsed_checked_asin):
 
 def prepare_text(page_elem, just_strip=True):
     if page_elem:
-
-        elem_text = page_elem.text
+        elem_text = page_elem.text.strip()
 
         if just_strip:
-            return elem_text.strip()
+            return elem_text
 
         elem_text = elem_text.replace(",", "").replace("+", "")
 
@@ -105,7 +104,7 @@ def prepare_text(page_elem, just_strip=True):
             r"[0-9]+ global rating(s)? \| [0-9]+ global review(s)?"
         )
 
-        if num_of_reviews_pattern.match(elem_text.strip()):
+        if num_of_reviews_pattern.match(elem_text):
             return elem_text.split("|")[1].strip().split(" ")[0]
 
         return elem_text.split(" ")[0].strip()
@@ -132,7 +131,7 @@ def connect_to_api(api_key):
         status = client.account()
 
     except requests.exceptions.ConnectionError:
-        print_error_and_exit("Scraper API connection error")
+        print_error_and_exit("Connection error")
 
     if "error" in status:
         print_error_and_exit("Scraper API key error")
